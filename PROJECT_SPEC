@@ -1,0 +1,1085 @@
+Reflex — Project Specification
+1. Document Purpose
+This document is the single product and technical source of truth for the Reflex live prototype readiness sprint.
+
+The project must remain within the requirements, terminology, workflow, architecture, security expectations, scope boundaries, development process, testing requirements, deployment approach, presentation structure, trade-offs, and success criteria defined in this specification.
+
+The development team consists of three people working from:
+
+One GitHub repository
+
+Separate feature branches
+
+GitHub Codespaces
+
+Normal Claude web
+
+A shared AI-RULES.md
+
+A shared README.md
+
+These collaboration arrangements are development-process context for the team; the product requirements below are derived from the Reflex development specification.
+
+2. Product Overview
+Product name: Reflex
+
+Product type: Live delivery-management prototype
+
+Primary context: Small Kenyan retailers such as electronics shops, pharmacies, and hardware stores currently coordinate deliveries through WhatsApp and phone calls.
+
+Reflex provides a simple centralized delivery-management workflow:
+
+Retailer Staff → Create Delivery → Dispatcher Assigns Rider → Rider Updates Status → Retailer/Dispatcher Sees Live Status
+
+The prototype must demonstrate:
+
+Real-time synchronization of delivery updates
+
+Order/delivery confirmation through QR or barcode scanning
+
+A clear audit trail of important delivery events
+
+The prototype is intended to be simple enough to build and explain within the sprint while being structured well enough to demonstrate professional software-engineering practices.
+
+3. Problem Statement
+The current delivery coordination process creates the following problems:
+
+No central delivery record
+
+No clear assignment of deliveries to riders
+
+Poor status visibility
+
+Difficulty knowing which deliveries are still pending
+
+No reliable proof that an order was delivered
+
+Manual communication between retailer staff, dispatchers, and riders
+
+Reflex addresses these problems through a centralized delivery workflow with role-based access, controlled delivery status transitions, real-time updates, QR/barcode confirmation, and delivery-event history.
+
+4. Users and Permissions
+Reflex has three required user roles:
+
+Retailer Staff
+
+Dispatcher
+
+Rider
+
+Users must only access functionality appropriate to their role.
+
+4.1 Retailer Staff
+Retailer Staff can:
+
+Log in
+
+Create a delivery request
+
+Enter customer name
+
+Enter customer phone
+
+Enter delivery address
+
+Enter item/order description
+
+View delivery status
+
+View delivery details
+
+4.2 Dispatcher
+Dispatcher can:
+
+Log in
+
+View unassigned/open deliveries
+
+View available riders
+
+Assign a delivery to a rider
+
+Reassign a delivery when necessary
+
+View delivery status
+
+View delivery history
+
+4.3 Rider
+Rider can:
+
+Log in
+
+View assigned deliveries
+
+Open delivery details
+
+Update delivery status
+
+Scan a QR/barcode to confirm the correct order
+
+Confirm delivery
+
+5. Core Delivery Workflow
+The primary workflow is:
+
+Retailer Staff → Create Delivery → Dispatcher Assigns Rider → Rider Updates Status → Retailer/Dispatcher Sees Live Status
+
+The required end-to-end workflow is:
+
+Retailer creates a delivery.
+
+Dispatcher views the delivery.
+
+Dispatcher assigns a rider.
+
+Rider sees the assignment.
+
+Rider updates the delivery status through the permitted workflow.
+
+Rider scans the delivery QR code.
+
+The backend validates the delivery and rider.
+
+Delivery is confirmed.
+
+Relevant dashboards update automatically.
+
+The delivery timeline records the event.
+
+6. Functional Requirements
+6.1 Authentication
+The prototype must implement role-based authentication for:
+
+Retailer Staff
+
+Dispatcher
+
+Rider
+
+Authentication must be enforced by the backend.
+
+Users must only access functionality appropriate to their assigned role.
+
+6.2 Delivery Creation
+A Retailer Staff user must be able to create a delivery containing:
+
+Delivery/order ID
+
+Customer name
+
+Customer phone
+
+Address
+
+Item description
+
+Created timestamp
+
+Current status
+
+Assigned rider, if any
+
+6.3 Dispatcher Assignment
+The Dispatcher interface must show:
+
+Pending deliveries
+
+Delivery details
+
+Available riders
+
+The Dispatcher must be able to:
+
+Assign a rider
+
+Reassign a delivery when necessary
+
+View delivery status
+
+View delivery history
+
+6.4 Rider Workflow
+The Rider must be able to:
+
+View assigned deliveries
+
+Open delivery details
+
+Update delivery status only through permitted transitions
+
+Scan a QR/barcode
+
+Confirm delivery
+
+6.5 Real-Time Synchronization
+When a delivery is assigned or its status changes, relevant users must see the update without manually refreshing the page.
+
+6.6 QR/Barcode Confirmation
+Each delivery must have a unique identifier that can be represented as a QR code.
+
+The Rider must be able to scan the code using the device camera and use the result to identify or confirm the delivery.
+
+The backend must verify that:
+
+The scanned delivery belongs to the Rider
+
+The delivery is in a valid state
+
+Only after backend validation may confirmation be allowed.
+
+6.7 Delivery History and Audit Trail
+Important delivery events must be stored, including:
+
+Delivery created
+
+Rider assigned
+
+Delivery picked up
+
+Delivery moved to out-for-delivery
+
+Delivery delivered
+
+Delivery cancelled/reassigned
+
+Each event must include:
+
+Event type
+
+Delivery ID
+
+User who performed the action
+
+Timestamp
+
+The delivery timeline must provide a clear history of the workflow.
+
+7. State Machine
+Delivery statuses are:
+
+PENDING
+
+ASSIGNED
+
+PICKED_UP
+
+OUT_FOR_DELIVERY
+
+DELIVERED
+
+CANCELLED
+
+7.1 Required Transitions
+The normal delivery workflow is:
+
+PENDING → ASSIGNED → PICKED_UP → OUT_FOR_DELIVERY → DELIVERED
+
+The specification also requires:
+
+ASSIGNED → CANCELLED
+
+Where appropriate, a delivery may be moved back for reassignment:
+
+ASSIGNED → PENDING
+
+7.2 Transition Rules
+Status transitions must be implemented as backend business rules.
+
+The frontend must not be trusted to submit arbitrary statuses.
+
+The backend must validate whether a requested transition is permitted.
+
+Invalid transitions must return an appropriate API error.
+
+8. Architecture
+Reflex uses a simple three-layer architecture:
+
+React Frontend
+↓
+Node.js + Express API
+↓
+PostgreSQL/Supabase Database
+
+Real-time database subscriptions must be used for important delivery updates.
+
+8.1 Frontend Layer
+The frontend is responsible for:
+
+User interfaces
+
+Role-specific routes
+
+Delivery views
+
+Forms
+
+Status presentation
+
+QR code generation/display
+
+QR/barcode scanning interface
+
+Real-time display updates
+
+8.2 API Layer
+The Node.js + Express API is responsible for:
+
+REST endpoints
+
+Authentication middleware
+
+Role-based authorization middleware
+
+Input validation
+
+Delivery business logic
+
+Status-transition validation
+
+QR/barcode confirmation validation
+
+Centralized error handling
+
+8.3 Database Layer
+PostgreSQL through Supabase is responsible for:
+
+Users/profiles
+
+Deliveries
+
+Riders
+
+Delivery events
+
+Relationships and constraints
+
+Real-time database subscriptions
+
+9. Technology Stack
+9.1 Frontend
+Recommended technologies:
+
+React
+
+Vite
+
+React Router
+
+Tailwind CSS
+
+JavaScript or TypeScript
+
+React Hook Form
+
+A QR/barcode scanning library
+
+A QR-code generation library
+
+9.2 Backend
+Recommended technologies:
+
+Node.js
+
+Express
+
+REST API
+
+Authentication middleware
+
+Role-based authorization middleware
+
+Input validation
+
+Centralized error handling
+
+9.3 Database
+Use:
+
+PostgreSQL through Supabase
+
+The database must support the required relational structure and real-time subscriptions.
+
+9.4 Hosting
+Recommended deployment approach:
+
+Frontend → Vercel
+
+Backend → Render/Railway or another suitable Node hosting service
+
+Database + real-time → Supabase
+
+10. API Requirements
+The API must be resource-oriented and kept small.
+
+Do not create unnecessary endpoints. The purpose of every endpoint should be clear.
+
+10.1 Authentication
+POST /api/auth/login
+
+Purpose:
+
+Authenticate a user.
+
+10.2 Deliveries
+GET /api/deliveries
+
+Purpose:
+
+Retrieve deliveries relevant to the authenticated user/role.
+
+POST /api/deliveries
+
+Purpose:
+
+Create a delivery.
+
+GET /api/deliveries/:id
+
+Purpose:
+
+Retrieve delivery details.
+
+PATCH /api/deliveries/:id/assign
+
+Purpose:
+
+Assign or reassign a delivery to a rider.
+
+PATCH /api/deliveries/:id/status
+
+Purpose:
+
+Request a delivery status transition.
+
+POST /api/deliveries/:id/confirm
+
+Purpose:
+
+Confirm a delivery after QR/barcode validation.
+
+GET /api/deliveries/:id/events
+
+Purpose:
+
+Retrieve the delivery event history.
+
+10.3 Riders
+GET /api/riders
+
+Purpose:
+
+Retrieve available riders for dispatcher assignment.
+
+10.4 Dashboard
+GET /api/dashboard
+
+Purpose:
+
+Retrieve dashboard information required by the application.
+
+11. Database Requirements
+Use PostgreSQL through Supabase.
+
+Create tables for:
+
+users / profiles
+
+deliveries
+
+riders
+
+delivery_events
+
+Use foreign keys and constraints where appropriate.
+
+11.1 Users
+The user/profile model includes:
+
+id
+
+name
+
+email
+
+phone
+
+role
+
+created_at
+
+11.2 Deliveries
+The delivery model includes:
+
+id
+
+tracking_code
+
+customer_name
+
+customer_phone
+
+address
+
+item_description
+
+status
+
+created_by
+
+assigned_rider_id
+
+created_at
+
+updated_at
+
+delivered_at
+
+11.3 Delivery Events
+The delivery-event model includes:
+
+id
+
+delivery_id
+
+event_type
+
+performed_by
+
+metadata
+
+created_at
+
+11.4 Relationships
+Required relationships include:
+
+A user with the Rider role can be assigned to deliveries.
+
+A delivery can have many delivery events.
+
+Deliveries must retain their creator.
+
+Delivery events must retain the delivery and user responsible for the event.
+
+12. Frontend Structure
+Create role-specific interfaces.
+
+12.1 Routes
+/login
+
+/retailer/dashboard
+
+/retailer/deliveries/new
+
+/retailer/deliveries/:id
+
+/dispatcher/dashboard
+
+/dispatcher/deliveries/:id
+
+/rider/dashboard
+
+/rider/deliveries/:id
+
+/rider/scan
+
+12.2 Reusable Components
+Use reusable components such as:
+
+Navbar
+
+Sidebar
+
+DeliveryCard
+
+DeliveryTable
+
+StatusBadge
+
+DeliveryTimeline
+
+AssignmentModal
+
+QRScanner
+
+QRCode
+
+LoadingState
+
+ErrorState
+
+ConfirmationDialog
+
+13. Backend Structure
+Use a modular backend structure:
+
+server/
+src/
+  controllers/
+  routes/
+  middleware/
+  services/
+  validators/
+  utils/
+  config/
+db/
+app.js
+server.js
+Keep responsibilities separated.
+
+13.1 Routes
+Routes define HTTP endpoints.
+
+13.2 Controllers
+Controllers handle requests and responses.
+
+13.3 Services
+Services contain business logic.
+
+13.4 Middleware
+Middleware handles:
+
+Authentication
+
+Authorization
+
+Validation
+
+Errors
+
+13.5 Database
+Database code must remain separate from business logic.
+
+14. Security Requirements
+The prototype must demonstrate basic production-minded security.
+
+Required controls:
+
+Passwords must never be stored as plain text.
+
+Authentication must be enforced by the backend.
+
+Authorization must be checked server-side.
+
+All incoming data must be validated.
+
+The application must not trust role information supplied directly by the frontend.
+
+Sensitive environment variables must be protected.
+
+Database/service-role credentials must not be exposed in frontend code.
+
+QR/barcode confirmation must be validated on the server.
+
+HTTPS must be used in the deployed application.
+
+15. Real-Time Requirements
+Real-time synchronization is a core prototype requirement.
+
+Use real-time database subscriptions for important delivery updates.
+
+The system must demonstrate this scenario:
+
+Dispatcher assigns a delivery to Rider A.
+
+Rider A's dashboard receives the assignment without refreshing.
+
+Rider A updates the delivery to Picked Up.
+
+Dispatcher dashboard updates automatically.
+
+Rider A scans the delivery QR code.
+
+Backend validates the delivery and Rider.
+
+Delivery is confirmed.
+
+Relevant dashboards update automatically.
+
+Delivery timeline records the event.
+
+16. QR/Barcode Requirements
+Each delivery must have a unique identifier.
+
+That identifier must be representable as a QR code.
+
+The system must support:
+
+QR-code generation
+
+QR-code display
+
+Device-camera scanning
+
+Identification of the delivery from the scan result
+
+Backend verification of the scanned delivery
+
+Verification that the delivery belongs to the authenticated Rider
+
+Verification that the delivery is in a valid state
+
+Delivery confirmation only after successful backend validation
+
+The QR/barcode process is part of the delivery-confirmation workflow and must not bypass backend authorization or state validation.
+
+17. UX Requirements
+The interface must prioritize clarity over visual complexity.
+
+A user should immediately understand:
+
+What deliveries exist
+
+Who is assigned
+
+Current status
+
+What action they can perform next
+
+17.1 Status Indicators
+Use clear status indicators for:
+
+Pending
+
+Assigned
+
+Picked Up
+
+Out for Delivery
+
+Delivered
+
+Cancelled
+
+17.2 Responsive Design
+Design for desktop first.
+
+The Rider interface must work well on a mobile phone because Riders will primarily use mobile devices.
+
+18. MVP Scope
+The MVP prioritizes:
+
+Role-based authentication
+
+Delivery creation
+
+Dispatcher assignment
+
+Rider workflow
+
+Controlled status transitions
+
+Real-time synchronization
+
+QR/barcode confirmation
+
+Delivery history/audit trail
+
+Role-specific dashboards/interfaces
+
+Validation and error handling
+
+End-to-end demonstration
+
+19. MVP Boundaries and Exclusions
+Do not attempt to build the following as part of the MVP:
+
+Full GPS tracking
+
+Route optimization
+
+Payments
+
+Customer mobile application
+
+SMS gateway
+
+WhatsApp integration
+
+Complex analytics
+
+Multi-company enterprise administration
+
+Advanced fleet management
+
+These are future roadmap items rather than MVP features.
+
+No additional features, integrations, or business requirements should be introduced into the project unless the Reflex specification is explicitly changed.
+
+20. Development Order
+Build the prototype in this order:
+
+Define requirements and acceptance criteria.
+
+Design architecture.
+
+Design database schema.
+
+Set up repository and project structure.
+
+Implement database.
+
+Implement authentication.
+
+Implement delivery creation.
+
+Implement dispatcher assignment.
+
+Implement rider status workflow.
+
+Implement delivery event history.
+
+Implement real-time synchronization.
+
+Implement QR generation.
+
+Implement QR scanning and backend verification.
+
+Build dashboards.
+
+Add validation and error handling.
+
+Test the complete workflow.
+
+Deploy frontend and backend.
+
+Seed realistic demonstration data.
+
+Perform an end-to-end live demo.
+
+Document architecture, trade-offs, limitations, and roadmap.
+
+21. Testing Requirements
+At minimum, test:
+
+User login
+
+Role restrictions
+
+Delivery creation
+
+Rider assignment
+
+Valid status transition
+
+Invalid status transition
+
+Real-time status update
+
+QR generation
+
+QR scanning
+
+Unauthorized delivery confirmation
+
+Delivery event creation
+
+Error handling
+
+Mobile Rider workflow
+
+21.1 End-to-End Test
+The most important test is:
+
+Retailer creates delivery → Dispatcher assigns rider → Rider sees assignment → Rider updates status → Rider scans QR → Delivery is confirmed → Dispatcher sees updated status → Event history records the workflow.
+
+22. Deployment Requirements
+The prototype must be deployed so it can be accessed through a real URL.
+
+Recommended approach:
+
+Frontend → Vercel
+
+Backend → Render/Railway or another suitable Node hosting service
+
+Database + real-time → Supabase
+
+Production environment variables must be configured correctly.
+
+The final prototype must not depend on localhost for the demonstration.
+
+HTTPS must be used in the deployed application.
+
+23. Acceptance Criteria
+The Reflex prototype is acceptable when an evaluator can perform the complete required workflow through the deployed application:
+
+Authentication
+A user can log in.
+
+The system recognizes the user's role.
+
+Users can access only functionality appropriate to their role.
+
+Delivery Creation
+Retailer Staff can create a delivery.
+
+The delivery contains the required customer, address, item, timestamp, status, and assignment information.
+
+Assignment
+Dispatcher can view pending/open deliveries.
+
+Dispatcher can view available riders.
+
+Dispatcher can assign a delivery to a rider.
+
+Dispatcher can reassign a delivery where necessary.
+
+Status Workflow
+Rider can view assigned deliveries.
+
+Rider can update status through permitted transitions.
+
+Invalid transitions are rejected by the backend.
+
+Real-Time Behavior
+Assignment changes appear without manual refresh.
+
+Status changes appear to relevant users without manual refresh.
+
+QR/Barcode Confirmation
+A delivery has a unique identifier represented by a QR code.
+
+Rider can scan using the device camera.
+
+Backend validates the scanned delivery.
+
+Backend validates Rider ownership.
+
+Backend validates the delivery state.
+
+Valid confirmation is accepted.
+
+Unauthorized confirmation is rejected.
+
+Audit Trail
+Important delivery events are recorded.
+
+Events identify the event type.
+
+Events identify the delivery.
+
+Events identify the user who performed the action.
+
+Events include timestamps.
+
+Delivery history can be viewed.
+
+Deployment
+The prototype is accessible through a real URL.
+
+The demonstration does not depend on localhost.
+
+Production environment variables are configured correctly.
+
+HTTPS is used.
+
+24. Executive Story
+The presentation must be organized around:
+
+Problem
+
+Users
+
+Solution
+
+Live workflow
+
+Architecture
+
+Key engineering decisions
+
+Security
+
+Trade-offs
+
+Evidence/testing
+
+Roadmap
+
+Every slide should communicate one major idea.
+
+25. Engineering Trade-Offs
+Identify at least three real trade-offs in the implementation.
+
+For each trade-off, document:
+
+Decision
+
+Why we chose it
+
+What limitation it creates
+
+Why the limitation was acceptable for the MVP
+
+What we would change at scale
+
+Do not hide weaknesses.
+
+The purpose is to demonstrate that engineering decisions are intentional and understood rather than pretending the prototype is production-ready.
+
+26. Cross-Examination Preparation
+Prepare technical answers using:
+
+State → Context → Evidence
+
+26.1 Answer Structure
+State
+
+Give the direct decision or conclusion.
+
+Context
+
+Explain the problem, workflow, or constraint that influenced the decision.
+
+Evidence
+
+Point to the implementation, schema, behavior, test, or other concrete evidence from the prototype.
+
+26.2 Example
+Question:
+
+Why did you use PostgreSQL instead of MongoDB?
+
+Answer structure:
+
+State:
+We chose PostgreSQL because the system has clear relationships between users, riders, deliveries, and delivery events.
+
+Context:
+The workflow depends on consistent relationships and controlled status transitions.
+
+Evidence:
+The schema uses foreign keys between deliveries, users, and delivery events, which gives stronger relational integrity for this workflow.
+
+26.3 Unknown Questions
+When the answer is genuinely unknown, use:
+
+I don't know that yet, but I would investigate it by...
+
+Do not pretend to know something that has not been established.
+
+The goal is to demonstrate that engineering decisions are intentional, understandable, testable, and defensible.
+
+27. Final Success Criterion
+The finished Reflex prototype must allow an evaluator to perform this live:
+
+Log in as retailer → create delivery → log in/view as dispatcher → assign rider → view as rider → update status → scan QR → confirm delivery → return to dispatcher → observe updated delivery status and event history.
+
+The prototype must be simple enough to build and explain within the sprint while being structured well enough to demonstrate professional software-engineering practices.
+
+28. Source-of-Truth Rules
+For the three-person development team:
+
+This PROJECT_SPEC.md defines the product and technical requirements for Reflex.
+
+The team must preserve the specified workflow, roles, statuses, architecture, security requirements, API design, database model, routes, components, scope boundaries, testing requirements, deployment approach, presentation structure, trade-off expectations, and success criterion.
+
+Features outside the defined MVP boundaries must not be added as MVP requirements.
+
+The backend remains the authority for authentication, authorization, input validation, status-transition validation, and QR/barcode confirmation validation.
+
+The prototype must demonstrate the complete end-to-end workflow through a real deployed URL.
+
+The implementation should be explainable, testable, and defensible during the live demonstration and cross-examination.
+
+Architecture, trade-offs, limitations, and roadmap decisions must be documented rather than hidden.
