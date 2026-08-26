@@ -1,4 +1,3 @@
-# reflex-week-3
 # Reflex
 
 Reflex is a live delivery-management prototype for small Kenyan retailers such as electronics shops, pharmacies, and hardware stores.
