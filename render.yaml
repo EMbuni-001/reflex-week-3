@@ -1,0 +1,77 @@
+# Render Deployment Configuration (D2-18)
+# 
+# Deploy to Render.com:
+#   1. Create account at render.com
+#   2. Connect GitHub repository
+#   3. Create new Web Service
+#   4. Select this repository and main branch
+#   5. Render will auto-detect this render.yaml file
+#   6. Add environment variables in Render dashboard
+#   7. Deploy!
+#
+# Environment Variables Required (set in Render dashboard):
+#   - SUPABASE_URL: your-project.supabase.co
+#   - SUPABASE_SERVICE_ROLE_KEY: service-role-key-from-supabase
+#   - PORT: 3000 (or leave default)
+#   - NODE_ENV: production
+#   - LOG_LEVEL: info
+#
+# Alternative: Deploy to Railway.app (see railway.json)
+
+services:
+  - type: web
+    name: reflex-backend
+    env: node
+    region: oregon # Closest to users (change as needed)
+    plan: free # Upgrade to paid if needed
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: LOG_LEVEL
+        value: info
+      # Add these manually in Render dashboard (don't commit secrets):
+      # - key: SUPABASE_URL
+      #   sync: false
+      # - key: SUPABASE_SERVICE_ROLE_KEY
+      #   sync: false
+
+    # Health check (Render pings this to verify app is running)
+    healthCheckPath: /api/health
+    healthCheckInterval: 30
+    healthCheckTimeout: 5
+    healthCheckStartupDelay: 30
+
+    # Auto-restart on crash
+    autoRestart: on
+
+    # Build details
+    buildFilter:
+      paths:
+        - server/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+    
+    # Enable auto-deploy on push to main branch
+    autoDeploy: true
+
+    # Database (optional: connect Supabase PostgreSQL)
+    # If using Render's PostgreSQL: add database service below
+    # databases: 
+    #   - name: reflex_db
+
+    # Environment-specific config
+    preDeployCommand: npm run seed # Run seeding after deploy (optional)
+
+# Optional: PostgreSQL database on Render (if not using Supabase)
+# databases:
+#   - name: reflex-db
+#     databaseName: reflex
+#     user: reflex_user
+#     plan: free
+#     postgresMajorVersion: 14
