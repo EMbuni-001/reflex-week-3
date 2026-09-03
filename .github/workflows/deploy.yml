@@ -1,0 +1,61 @@
+# GitHub Actions Workflow for Automated Deployment (D2-18)
+#
+# Automatically deploy to Render when you push to main branch.
+# 
+# Setup Instructions:
+#   1. Go to Render.com and create a Web Service for this repo
+#   2. Get your RENDER_DEPLOY_HOOK from Render dashboard
+#   3. Add it as a GitHub secret: Settings > Secrets > New > RENDER_DEPLOY_HOOK
+#   4. Push to main branch — workflow will auto-trigger
+#
+# View deployment status: GitHub > Actions tab
+
+name: Deploy to Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy.yml'
+      - 'render.yaml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Trigger Render Deploy
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
+            echo "⚠️  RENDER_DEPLOY_HOOK not set. Add it to GitHub Secrets."
+            exit 1
+          fi
+          curl "${{ secrets.RENDER_DEPLOY_HOOK }}"
+      
+      - name: Notify Deployment
+        if: success()
+        run: echo "✅ Deployment triggered on Render"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: cd server && npm install
+      
+      - name: Run linter (optional)
+        run: cd server && npm run lint || true
+      
+      - name: Run tests (optional)
+        run: cd server && npm test || true
