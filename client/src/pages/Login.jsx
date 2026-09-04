@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import ErrorState from "../components/ErrorState";
 
@@ -100,6 +100,13 @@ export default function Login() {
             <ErrorState message={loginError} inline />
           </div>
         )}
+
+        <p className="mt-6 text-center text-sm text-gray-500">
+          Retailer Staff account?{" "}
+          <Link to="/register" className="font-medium text-blue-600 hover:underline">
+            Create an account
+          </Link>
+        </p>
       </div>
     </div>
   );

@@ -72,12 +72,19 @@ async function updateDeliveryStatus(deliveryId, newStatus, user) {
     .from('deliveries')
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', deliveryId)
+    .eq('status', currentStatus)
     .select()
-    .single();
+    .maybeSingle();
 
-  if (updateError || !updatedDelivery) {
+  if (updateError) {
     const err = new Error('Failed to update delivery status.');
     err.status = 500;
+    throw err;
+  }
+
+  if (!updatedDelivery) {
+    const err = new Error('Delivery changed before this status update was applied. Please retry.');
+    err.status = 409;
     throw err;
   }
 
@@ -85,7 +92,7 @@ async function updateDeliveryStatus(deliveryId, newStatus, user) {
     PICKED_UP: EVENT_TYPES.PICKED_UP,
     OUT_FOR_DELIVERY: EVENT_TYPES.OUT_FOR_DELIVERY,
     CANCELLED: EVENT_TYPES.CANCELLED,
-    PENDING: EVENT_TYPES.CANCELLED, // ASSIGNED->PENDING is a reassignment reset; logged as CANCELLED-category per §6.7 "cancelled/reassigned"
+    PENDING: EVENT_TYPES.CANCELLED,
   };
 
   await deliveryEventService.recordEvent({

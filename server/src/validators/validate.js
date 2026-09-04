@@ -19,7 +19,10 @@ function validate(rules) {
       const rule = rules[field];
       const value = req.body[field];
 
-      const isMissing = value === undefined || value === null || value === '';
+      const isMissing =
+        value === undefined ||
+        value === null ||
+        (typeof value === 'string' && value.trim() === '');
 
       if (rule.required && isMissing) {
         errors.push(`${field} is required`);

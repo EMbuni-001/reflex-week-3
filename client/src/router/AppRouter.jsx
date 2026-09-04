@@ -3,6 +3,8 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import AppLayout from "../components/AppLayout";
 
 import Login from "../pages/Login";
+import Home from "../pages/Home";
+import Register from "../pages/Register";
 import RetailerDashboard from "../pages/retailer/RetailerDashboard";
 import DeliveryCreate from "../pages/retailer/DeliveryCreate";
 import RetailerDeliveryDetail from "../pages/retailer/RetailerDeliveryDetail";
@@ -35,14 +37,16 @@ import ComponentPreview from "../pages/dev/ComponentPreview";
  * actually need; this isn't a locked contract on their behalf.
  */
 const RETAILER_LINKS = [
-  { label: "Dashboard", path: "/retailer/dashboard" },
-  { label: "New Delivery", path: "/retailer/deliveries/new" },
+  { label: "Retailer Dashboard", path: "/retailer/dashboard" },
+  { label: "Create Delivery", path: "/retailer/deliveries/new" },
 ];
 
-const DISPATCHER_LINKS = [{ label: "Dashboard", path: "/dispatcher/dashboard" }];
+const DISPATCHER_LINKS = [
+  { label: "Dispatcher Dashboard", path: "/dispatcher/dashboard" },
+];
 
 const RIDER_LINKS = [
-  { label: "Dashboard", path: "/rider/dashboard" },
+  { label: "Rider Dashboard", path: "/rider/dashboard" },
   { label: "Scan QR", path: "/rider/scan" },
 ];
 
@@ -50,7 +54,9 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
         {/* Retailer routes — Developer 1 */}
         <Route
@@ -144,9 +150,8 @@ export default function AppRouter() {
           <Route path="/dev/components" element={<ComponentPreview />} />
         )}
 
-        {/* No catch-all/unauthorized route defined in PROJECT_SPEC.md §12.1 —
-            default unmatched paths to /login rather than inventing a new route. */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Unknown paths return to the public entry point, not the login page. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

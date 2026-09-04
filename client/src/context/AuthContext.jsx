@@ -67,8 +67,7 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ email, password }),
     });
 
-    // <-- change this destructuring if Developer 2's response shape differs
-    const { token: newToken, user: newUser } = data;
+    const { access_token: newToken, user: newUser } = data;
 
     setUser(newUser);
     setToken(newToken);

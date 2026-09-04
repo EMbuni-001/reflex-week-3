@@ -15,8 +15,8 @@
  *   - Database tables must already exist (001, 002, 003 migrations applied)
  * 
  * Note:
- *   - This script creates real Supabase auth users via signUp
- *   - Demo passwords are in console output only (save them locally if needed)
+ *   - This script creates real Supabase auth users through the Admin API
+ *   - Account passwords must be provided through local environment variables
  *   - For production, use Supabase auth management UI or invite links
  */
 
@@ -35,32 +35,40 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} must be set in the local environment before seeding.`);
+  }
+  return value;
+}
+
 // Demo data
 const DEMO_USERS = [
   {
     email: 'retailer@demo.com',
-    password: 'RetailerDemo123!',
+    password: requiredEnv('DEMO_RETAILER_PASSWORD'),
     name: 'Alice Retailer',
     phone: '+1-555-1001',
     role: 'RETAILER_STAFF',
   },
   {
     email: 'dispatcher@demo.com',
-    password: 'DispatcherDemo123!',
+    password: requiredEnv('DEMO_DISPATCHER_PASSWORD'),
     name: 'Bob Dispatcher',
     phone: '+1-555-2001',
     role: 'DISPATCHER',
   },
   {
     email: 'rider1@demo.com',
-    password: 'Rider1Demo123!',
+    password: requiredEnv('DEMO_RIDER1_PASSWORD'),
     name: 'Charlie Rider',
     phone: '+1-555-3001',
     role: 'RIDER',
   },
   {
     email: 'rider2@demo.com',
-    password: 'Rider2Demo123!',
+    password: requiredEnv('DEMO_RIDER2_PASSWORD'),
     name: 'Diana Rider',
     phone: '+1-555-3002',
     role: 'RIDER',
@@ -276,11 +284,11 @@ async function main() {
 
     // Step 4: Print summary
     console.log('\n✨ Seed complete!\n');
-    console.log('📌 Demo Credentials:');
+    console.log('📌 Demo Accounts:');
     createdUsers.forEach((user) => {
-      console.log(`   ${user.role.padEnd(15)} | ${user.email} | ${user.password}`);
+      console.log(`   ${user.role.padEnd(15)} | ${user.email}`);
     });
-    console.log('\n💡 Tip: Save these credentials locally. You can also reset via Supabase auth dashboard.');
+    console.log('\n💡 Passwords are not printed. Use the local values configured for seeding.');
 
   } catch (error) {
     console.error('❌ Seed failed:', error.message);
