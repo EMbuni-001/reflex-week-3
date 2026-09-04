@@ -1,0 +1,43 @@
+# Mock Server Consistency Pass (D1.11 companion)
+
+## What this is
+
+A self-consistency check across the entire Developer 1 retailer flow —
+login → create delivery → dashboard list → delivery detail — run
+against one coherent in-memory mock server, so a created delivery
+genuinely has to reappear correctly in later fetches within the same
+run, not just satisfy isolated fixture responses.
+
+## What this proves
+
+That the request/response assumptions documented across `AuthContext.jsx`,
+`RetailerDashboard.jsx`, `DeliveryCreate.jsx`, and `RetailerDeliveryDetail.jsx`
+are internally consistent with each other, and that the actual
+`src/lib/api.js` logic (not a hand-wavy reimplementation — verified
+programmatically by `verify-sync.mjs`) behaves correctly against a
+backend matching those assumptions.
+
+## What this does NOT prove
+
+That Developer 2's **real** backend matches these assumptions. This is
+a mock, built from what Developer 1 has documented as an assumption at
+every step (see the `ASSUMED request/response shape` comments
+throughout the frontend source) — not Developer 2's actual
+implementation, which Claude has no access to. For that, see the
+companion deliverable: `manual-test-checklist.zip`.
+
+## Running it yourself
+
+```
+node verify-sync.mjs          # confirms api-client.mjs matches the real src/lib/api.js
+node mock-server.mjs &        # starts the mock backend on :4400
+node run-consistency-test.mjs # runs the full flow, 18 checks
+```
+
+## Files
+
+- `reference-api.js` — snapshot of the real `src/lib/api.js` as of D1.10, for the sync check
+- `api-client.mjs` — Node-runnable copy of the same logic (only the base-URL line differs, since `import.meta.env` doesn't exist in plain Node)
+- `verify-sync.mjs` — proves the above two are functionally identical
+- `mock-server.mjs` — coherent in-memory mock backend (login, create, list, detail)
+- `run-consistency-test.mjs` — the actual flow test, 18 assertions
