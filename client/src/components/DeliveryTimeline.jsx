@@ -13,7 +13,7 @@ function formatEventType(eventType) {
 }
 
 function formatPerformer(event) {
-  return event.performed_by_name || event.performed_by || "Unknown user";
+  return event.performer_name || event.performed_by || "Unknown user";
 }
 
 function formatTimestamp(createdAt) {

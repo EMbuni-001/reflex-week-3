@@ -1,20 +1,14 @@
 import StatusBadge from "./StatusBadge";
 
 /**
- * DeliveryTable — shared component (Task D1.5, PROJECT_SPEC.md §12.2)
+ * DeliveryTable — shared component (PROJECT_SPEC.md §12.2)
  * ---------------------------------------------------------------------
- * SHARED COMPONENT: same three blocked consumers as DeliveryCard
- * (D1.7, D2.12, D3.1). See DeliveryCard.jsx for the full note on the
- * assumed delivery-object shape and why it's flagged, not locked.
+ * FIX: same field-name correction as DeliveryCard.jsx — see that
+ * file's comment for the confirmed real backend shape.
  *
  * Props:
- *   deliveries (array, required) — array of delivery objects (see
- *     DeliveryCard.jsx for the assumed shape).
- *   onRowClick (function, optional) — called with a single delivery
- *     when its row is clicked.
- *
- * Empty state: renders a plain "No deliveries." message instead of an
- * empty table shell — a small UX default, not a new requirement.
+ *   deliveries (array, required)
+ *   onRowClick (function, optional)
  */
 export default function DeliveryTable({ deliveries, onRowClick }) {
   if (!deliveries || deliveries.length === 0) {
@@ -41,14 +35,14 @@ export default function DeliveryTable({ deliveries, onRowClick }) {
               onRowClick ? "cursor-pointer hover:bg-gray-50" : ""
             }`}
           >
-            <td className="py-2 pr-4 text-gray-800">{delivery.customerName}</td>
+            <td className="py-2 pr-4 text-gray-800">{delivery.customer_name}</td>
             <td className="py-2 pr-4 text-gray-600">{delivery.address}</td>
-            <td className="py-2 pr-4 text-gray-600">{delivery.itemDescription}</td>
+            <td className="py-2 pr-4 text-gray-600">{delivery.item_description}</td>
             <td className="py-2 pr-4">
               <StatusBadge status={delivery.status} />
             </td>
             <td className="py-2 pr-4 text-gray-600">
-              {delivery.assignedRider ? delivery.assignedRider.name : "Unassigned"}
+              {delivery.assigned_rider_id || "Unassigned"}
             </td>
           </tr>
         ))}

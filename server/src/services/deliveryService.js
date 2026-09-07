@@ -157,7 +157,7 @@ async function getDeliveryEvents(id, user) {
 
   const { data, error } = await supabase
     .from('delivery_events')
-    .select('*')
+    .select('id, delivery_id, event_type, performed_by, metadata, created_at, users(name)')
     .eq('delivery_id', id)
     .order('created_at', { ascending: true });
 
@@ -167,7 +167,15 @@ async function getDeliveryEvents(id, user) {
     throw err;
   }
 
-  return data;
+  return data.map((event) => ({
+    id: event.id,
+    delivery_id: event.delivery_id,
+    event_type: event.event_type,
+    performed_by: event.performed_by,
+    performer_name: event.users?.name || null,
+    metadata: event.metadata,
+    created_at: event.created_at,
+  }));
 }
 
 module.exports = {
