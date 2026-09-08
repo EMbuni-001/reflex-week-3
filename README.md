@@ -1,1042 +1,227 @@
 # Reflex
 
-Reflex is a live delivery-management prototype for small Kenyan retailers such as electronics shops, pharmacies, and hardware stores.
+**Reflex** is a live delivery-management prototype built for small Kenyan retailers — electronics shops, pharmacies, hardware stores — who currently coordinate deliveries by WhatsApp and phone calls.
 
-It provides a centralized workflow for creating, assigning, tracking, and confirming deliveries:
+**🔗 Live app:** https://reflex-delivery.vercel.app
+**🔗 Live API:** https://reflex-backend-n6jy.onrender.com
 
-Retailer Staff → Create Delivery → Dispatcher Assigns Rider → Rider Updates Status → Retailer/Dispatcher Sees Live Status
+---
 
-The prototype demonstrates role-based access, controlled delivery status transitions, real-time synchronization, QR/barcode confirmation, and a delivery-event audit trail.
+## Why We Built Reflex
 
-Source of truth: PROJECT_SPEC.md defines the Reflex product and technical requirements. AI-RULES.md defines how AI assistance and the three-person team should work within those requirements.
+Walk into almost any small retailer in Nairobi handling its own deliveries, and the process looks the same: a staff member takes an order, calls or WhatsApps a rider, and hopes the message doesn't get lost in a group chat with forty other things happening in it. There's no record anyone can point to later. No one can say with confidence which of today's twelve orders are still sitting at the shop and which are already on a bike. When a customer calls asking "where's my order," the answer is usually "let me call the rider and find out" — not something anyone can just look up.
 
-**Overview**
+That's the actual problem Reflex solves. Not a hypothetical one — this is how delivery coordination works today for shops that are too small to justify (or afford) a full logistics platform, but too busy to keep tolerating chaos.
 
-Small retailers currently coordinate deliveries through WhatsApp and phone calls. This can result in:
+Reflex gives these shops one shared, live view of every delivery: who created it, who it's assigned to, what state it's in right now, and proof — an actual QR-code scan, not just someone's word — that it was delivered. Three people can look at the same delivery at the same time and see the same, current truth, without anyone needing to ask anyone else.
 
-No central delivery record
+We built it as a **prototype**, deliberately scoped: no GPS tracking, no route optimization, no payments, no SMS gateway. Just the core loop, done properly — because a small, reliable tool that actually gets used beats a large one that doesn't.
 
-No clear assignment of deliveries to riders
+---
 
-Poor status visibility
+## The Core Workflow
 
-Difficulty knowing which deliveries are still pending
+```
+Retailer Staff  →  Create Delivery  →  Dispatcher Assigns Rider  →  Rider Updates Status  →  Everyone Sees It Live
+```
 
-No reliable proof that an order was delivered
+Every step is visible to everyone who needs to see it, the moment it happens — no refreshing, no calling around to ask.
 
-Manual communication between retailer staff, dispatchers, and riders
+---
 
-Reflex addresses this with a simple delivery-management workflow involving three user roles:
+## User Roles
 
-Retailer Staff
+### Retailer Staff
+Logs in, creates a delivery (customer name, phone, address, item description), and can check on its status and details at any time.
 
-Dispatcher
+### Dispatcher
+Logs in, sees deliveries waiting to be assigned (or everything, with a filter toggle), sees which riders are available, and assigns — or reassigns — a rider to a delivery.
 
-Rider
+### Rider
+Logs in, sees only the deliveries assigned to them, updates status as they progress (picked up → out for delivery), and confirms the final handoff by scanning the delivery's QR code with their phone's camera.
 
-The prototype demonstrates:
+There is deliberately **no "admin" or "developer" role** baked into the app itself. Team members needing to test a given role's functionality use dedicated test accounts for that role — building an in-app superuser would have undermined the same server-side authorization model everything else relies on.
 
-Role-based authentication
+---
 
-Delivery creation
+## The Delivery Lifecycle
 
-Rider assignment
+```
+PENDING → ASSIGNED → PICKED_UP → OUT_FOR_DELIVERY → DELIVERED
+```
 
-Controlled delivery status updates
+Also supported:
+```
+ASSIGNED → CANCELLED
+ASSIGNED → PENDING   (dispatcher reassignment reset)
+```
 
-Real-time synchronization
+Every single transition is validated on the **backend**, not trusted from whatever the app's UI happens to show. The server keeps a strict lookup table of which status can move to which next status, and which role is allowed to make that specific move — a Rider can move a delivery forward, a Dispatcher can cancel or reassign it, and neither can do the other's job. Anything outside that table is rejected outright.
 
-QR/barcode confirmation
+**`DELIVERED` is special.** It cannot be reached through the normal "update status" action at all — the only way a delivery becomes `DELIVERED` is by a rider actually scanning its QR code and the backend independently confirming that scan is legitimate. "Delivered" in Reflex always means someone proved it, not just clicked a button.
 
-Delivery history and audit events
+---
 
-User Roles
+## What's Actually Built
 
-Retailer Staff
+- **Role-based login** — real authentication (Supabase Auth), with the backend independently re-checking who you are and what role you have on every single request. The app never just trusts what the frontend claims about you.
+- **Delivery creation** — full customer/address/item details, an automatically generated unique tracking code, always starting at `PENDING`.
+- **Assignment & reassignment** — a Dispatcher picks a rider from the available list; deliveries can be reassigned right up until a rider has picked them up.
+- **Status updates** — riders move a delivery forward through the workflow with one clear action at a time.
+- **Live updates, everywhere** — when a delivery changes, every dashboard watching it updates on its own. No one has to hit refresh to find out something happened.
+- **QR-code confirmation** — every delivery gets a scannable code; a rider scans it with their phone camera, and the backend checks it's the right delivery, the right rider, and the right moment in the process before marking it delivered.
+- **A full history for every delivery** — created, assigned, picked up, out for delivery, delivered (or cancelled) — each entry showing what happened, who did it, and when, laid out as a simple timeline.
 
-Retailer Staff can:
+---
 
-Log in
+## How It's Built
 
-Create a delivery request
+```
+React (Vite + Tailwind + React Router)
+                ↓
+        Node.js + Express API
+                ↓
+   PostgreSQL via Supabase (+ live updates)
+```
 
-Enter customer name
+**Frontend:** React 19, Vite, React Router, Tailwind CSS, React Hook Form, `qrcode` (generating QR codes), `html5-qrcode` (scanning them via the camera), and a lightweight Supabase real-time connection used *only* to know "something changed, go check again" — never as a source of actual delivery data.
 
-Enter customer phone
+**Backend:** Node.js + Express, structured so each concern lives in its own place — routes define endpoints, controllers handle requests, services hold the actual business logic, middleware handles authentication/authorization/errors, and validators check incoming data before anything touches the database.
 
-Enter delivery address
+**Database:** PostgreSQL through Supabase. Three tables — `users`, `deliveries`, `delivery_events`. Riders are simply `users` with `role = 'RIDER'`; there's no separate riders table, since that would just duplicate the same information.
 
-Enter item/order description
+Row-level security is deliberately switched off on all three tables — the Express backend, using Supabase's elevated service-role key, is the single, sole authority deciding who can see or change what. Every request already passes through real authentication and role checks before it ever touches the database, so a second layer of database-level rules would just be duplicating logic that's already correctly enforced elsewhere.
 
-View delivery status
+---
 
-View delivery details
+## API
 
-Dispatcher
+| Method | Endpoint | What it does |
+|---|---|---|
+| `POST` | `/api/auth/login` | Log in, get back a token and your profile |
+| `GET` | `/api/deliveries` | Your deliveries — scoped to your role automatically |
+| `POST` | `/api/deliveries` | Create a delivery (Retailer only) |
+| `GET` | `/api/deliveries/:id` | One delivery's full details |
+| `PATCH` | `/api/deliveries/:id/assign` | Assign or reassign a rider (Dispatcher only) |
+| `PATCH` | `/api/deliveries/:id/status` | Move a delivery to its next status |
+| `POST` | `/api/deliveries/:id/confirm` | Confirm delivery via a scanned QR code (Rider only) |
+| `GET` | `/api/deliveries/:id/events` | The full event history for one delivery |
+| `GET` | `/api/riders` | Available riders (Dispatcher only) |
+| `GET` | `/api/dashboard` | A quick summary count, scoped to your role |
 
-Dispatcher can:
+Nothing exists outside this list. Every error comes back in the same shape: `{ "error": "a clear message" }`.
 
-Log in
+---
 
-View unassigned/open deliveries
+## Frontend Routes
 
-View available riders
+| Route | Who it's for |
+|---|---|
+| `/` , `/login`, `/register` | Anyone |
+| `/retailer/dashboard`, `/retailer/deliveries/new`, `/retailer/deliveries/:id` | Retailer Staff |
+| `/dispatcher/dashboard`, `/dispatcher/deliveries/:id` | Dispatcher |
+| `/rider/dashboard`, `/rider/deliveries/:id`, `/rider/scan` | Rider |
 
-Assign a delivery to a rider
+If someone's logged in but tries to visit a page that isn't theirs, they see a clear "you don't have access to this" message — not a confusing redirect, and not the real page's content either. And regardless of what the interface shows or hides, the backend enforces the exact same rules independently on every request, so hiding a button is never the actual security.
 
-Reassign a delivery when necessary
+---
 
-View delivery status
+## Security, Plainly
 
-View delivery history
+- We never touch or store raw passwords — Supabase Auth owns that entirely.
+- Every request is independently authenticated and authorized on the server, not just the browser.
+- A user's role is read fresh from the database on every request — never cached, never trusted from what the client claims.
+- All incoming data is validated server-side before it's acted on.
+- The powerful Supabase service-role key lives only on the backend and never reaches the browser. The frontend only ever holds the public, restricted anon key.
+- QR confirmation checks the right delivery, the right rider, and the right status — in that order — before anything is marked delivered.
+- Both the live frontend and backend run over HTTPS.
 
-Rider
+---
 
-Rider can:
+## Deployment
 
-Log in
+| Layer | Where | Branch |
+|---|---|---|
+| Frontend | [Vercel](https://reflex-delivery.vercel.app) | `main` |
+| Backend | [Render](https://reflex-backend-n6jy.onrender.com) | `main` |
+| Database + real-time | Supabase | — |
 
-View assigned deliveries
+Both the frontend and backend redeploy automatically whenever `main` is updated.
 
-Open delivery details
+### Environment variables
 
-Update delivery status
+**Backend** (never committed):
+```
+PORT=5000
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+```
 
-Scan a QR/barcode to confirm the correct order
+**Frontend** (never committed):
+```
+VITE_API_BASE_URL=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
 
-Confirm delivery
+The frontend's Supabase values use the public anon key and are safe to expose in a browser. The backend's service-role key must never leave the server.
 
-Core Workflow
+**One important thing we learned the hard way:** if the frontend is ever deployed without `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` set, the entire app fails to render — not just the real-time features, the *whole page goes blank*, because the app crashes while first loading, before anything can even appear on screen. If a deployment ever shows a blank white page, check these two variables first.
 
-The normal delivery lifecycle is:
+---
 
-Pending
-   ↓
-Assigned
-   ↓
-Picked Up
-   ↓
-Out for Delivery
-   ↓
-Delivered
+## Running It Yourself
 
-The specification also permits:
+1. Clone the repo. Run `npm install` inside both `server/` and `client/`.
+2. Set up both `.env` files as shown above, pointing at your own Supabase project.
+3. Run the SQL migration files in `server/db/` against that project, in order, and make sure Row Level Security is switched off on all three tables.
+4. Start the backend: `npm start` inside `server/`.
+5. Start the frontend: `npm run dev` inside `client/`.
+6. Log in with a seeded test account for whichever role you want to try.
 
-Assigned → Cancelled
+### Checks
+```
+cd server && npm test        # backend test suite (mocked, no real credentials touched)
+cd client && npm run build   # confirms the frontend builds cleanly
+cd client && npm run lint    # code-quality check
+```
 
-and, where a dispatcher needs to reassign a delivery:
+---
 
-Assigned → Pending
+## Test Accounts
 
-Arbitrary status changes are not permitted.
+Real accounts exist for each role for development and QA — see `server/db/TEST_ACCOUNTS.md` for how to obtain the current password safely. Several rider accounts exist specifically to test assignment and reassignment between different riders.
 
-The backend must validate whether a requested status transition is allowed. The frontend must not be treated as the authority for delivery-state changes.
+There's no self-service way to create a Dispatcher or Rider account (only Retailer Staff can register themselves) — adding one means creating the account in Supabase directly and giving it the right role, documented step by step in that same file.
 
-**Key Features**
+---
 
-The Reflex MVP is required to demonstrate:
+## What We Deliberately Didn't Build
 
-Authentication
+These aren't gaps — they're a line we drew on purpose, so the prototype stayed something we could actually finish and trust:
 
-Role-based access
+- Full GPS tracking
+- Route optimization
+- Payments
+- A customer-facing mobile app
+- SMS or WhatsApp integration
+- Complex analytics
+- Multi-company / enterprise administration
+- Fleet management tools
 
-Delivery creation
+They're reasonable next steps for a future version — just not part of proving out the core idea.
 
-Dispatcher assignment
+---
 
-Rider workflow
+## Honest Limitations
 
-Real-time synchronization
+A few things worth knowing rather than glossing over:
 
-QR/barcode confirmation
+- A delivery's assigned rider currently shows as an internal ID rather than a friendly name on a couple of screens (the event timeline resolves a real name; the delivery record's own summary doesn't yet).
+- Automated tests cover login, permissions, the full delivery lifecycle, and QR confirmation thoroughly, but don't yet directly test the riders list, dashboard summary, or list-level scoping endpoints.
+- A reusable "are you sure?" confirmation component exists in the codebase but isn't wired into any specific action yet (e.g., before cancelling a delivery).
+- Real-time notifications are intentionally lightweight — they only ever say "something changed, go check again," and the app always re-fetches the real data through the properly secured API rather than trusting the notification's contents directly. This was a deliberate simplicity trade-off, made explicitly rather than by accident.
 
-Delivery history and audit trail
+---
 
-Input validation
-
-Security controls
-
-Error handling
-
-This README describes what the specification requires. It does not mean every item is already implemented.
-
-Technology Stack
-
-**Frontend**
-
-The specified frontend technologies are:
-
-React
-
-Vite
-
-React Router
-
-Tailwind CSS
-
-JavaScript or TypeScript
-
-React Hook Form
-
-A QR/barcode scanning library
-
-A QR-code generation library
-
-**Backend**
-
-The specified backend technologies and responsibilities are:
-
-Node.js
-
-Express
-
-REST API
-
-Authentication middleware
-
-Role-based authorization middleware
-
-Input validation
-
-Centralized error handling
-
-**Database**
-
-The specified database is:
-
-PostgreSQL through Supabase
-
-Real-time database subscriptions for important delivery updates
-
-**Architecture**
-
-Reflex follows a simple three-layer architecture:
-
-┌──────────────────────────┐
-│     React Frontend       │
-│  Routes, UI, workflows   │
-└────────────┬─────────────┘
-             │
-             ▼
-┌──────────────────────────┐
-│   Node.js + Express API  │
-│ Auth, validation,        │
-│ authorization, business  │
-│ logic and REST API       │
-└────────────┬─────────────┘
-             │
-             ▼
-┌──────────────────────────┐
-│ PostgreSQL / Supabase    │
-│ Data + real-time         │
-│ subscriptions            │
-└──────────────────────────┘
-
-Frontend
-
-The React frontend provides the role-specific interfaces, delivery views, forms, status displays, QR-code functionality, scanning interface, and real-time presentation.
-
-API
-
-The Node.js + Express layer provides the REST API and handles authentication, authorization, validation, business logic, and error handling.
-
-Database
-
-PostgreSQL through Supabase stores the required users/profiles, deliveries, riders, and delivery events and provides the specified real-time database subscriptions.
-
-**Project Structure**
-
-The project specification recommends a modular backend structure:
-
-server/
-src/
-  controllers/
-  routes/
-  middleware/
-  services/
-  validators/
-  utils/
-  config/
-db/
-app.js
-server.js
-
-The exact repository layout for the complete application may include the frontend and documentation alongside the backend structure above.
-
-**Backend Responsibilities**
-
-Area
-
-Responsibility
-
-routes/
-
-Define HTTP endpoints
-
-controllers/
-
-Handle requests and responses
-
-services/
-
-Contain business logic
-
-middleware/
-
-Authentication, authorization, validation, and errors
-
-validators/
-
-Support input validation
-
-utils/
-
-Shared utility logic
-
-config/
-
-Configuration
-
-db/
-
-Database code kept separate from business logic
-
-The team should preserve separation of responsibilities and reuse existing components and services rather than duplicating logic.
-
-**Frontend Routes**
-
-The specified role-specific routes are:
-
-Route
-
-Purpose
-
-/login
-
-User login
-
-/retailer/dashboard
-
-Retailer Staff dashboard
-
-/retailer/deliveries/new
-
-Create a new delivery
-
-/retailer/deliveries/:id
-
-View a Retailer delivery
-
-/dispatcher/dashboard
-
-Dispatcher dashboard
-
-/dispatcher/deliveries/:id
-
-View and manage a Dispatcher delivery
-
-/rider/dashboard
-
-Rider dashboard
-
-/rider/deliveries/:id
-
-View and manage an assigned delivery
-
-/rider/scan
-
-Rider QR/barcode scanning interface
-
-Access to functionality must remain appropriate to the authenticated user's role.
-
-**Reusable Components**
-
-The specification identifies these reusable components:
-
-Navbar
-
-Sidebar
-
-DeliveryCard
-
-DeliveryTable
-
-StatusBadge
-
-DeliveryTimeline
-
-AssignmentModal
-
-QRScanner
-
-QRCode
-
-LoadingState
-
-ErrorState
-
-ConfirmationDialog
-
-The specification does not define the internal implementation of these components. Their implementation should therefore follow the project's established conventions while satisfying the relevant Reflex requirements.
-
-**API**
-
-The specified REST endpoints are:
-
-Method
-
-Endpoint
-
-Intended purpose
-
-POST
-
-/api/auth/login
-
-Authenticate a user
-
-GET
-
-/api/deliveries
-
-Retrieve deliveries
-
-POST
-
-/api/deliveries
-
-Create a delivery
-
-GET
-
-/api/deliveries/:id
-
-Retrieve delivery details
-
-PATCH
-
-/api/deliveries/:id/assign
-
-Assign or reassign a delivery to a rider
-
-PATCH
-
-/api/deliveries/:id/status
-
-Request a delivery status transition
-
-POST
-
-/api/deliveries/:id/confirm
-
-Confirm a delivery
-
-GET
-
-/api/deliveries/:id/events
-
-Retrieve delivery event history
-
-GET
-
-/api/riders
-
-Retrieve riders for assignment
-
-GET
-
-/api/dashboard
-
-Retrieve dashboard information
-
-The project specification does not define complete request/response schemas. Do not assume additional fields, payload formats, authentication details, or error schemas from this README.
-
-The API should remain small and resource-oriented. The specification explicitly says not to create unnecessary endpoints.
-
-**Database**
-
-The required database areas are:
-
-users / profiles
-
-deliveries
-
-riders
-
-delivery_events
-
-Users
-
-The specified fields are:
-
-id
-
-name
-
-email
-
-phone
-
-role
-
-created_at
-
-Deliveries
-
-The specified fields are:
-
-id
-
-tracking_code
-
-customer_name
-
-customer_phone
-
-address
-
-item_description
-
-status
-
-created_by
-
-assigned_rider_id
-
-created_at
-
-updated_at
-
-delivered_at
-
-Delivery Events
-
-The specified fields are:
-
-id
-
-delivery_id
-
-event_type
-
-performed_by
-
-metadata
-
-created_at
-
-**Relationships**
-
-The specification defines these relationships:
-
-A user with the Rider role can be assigned to deliveries.
-
-A delivery can have many delivery events.
-
-Foreign keys and constraints should be used where appropriate.
-
-The specification does not define additional database tables or fields beyond those listed above.
-
-**Security**
-
-Reflex must demonstrate basic production-minded security.
-
-Required practices include:
-
-Passwords must never be stored as plain text.
-
-Authentication must be enforced by the backend.
-
-Authorization must be checked server-side.
-
-All incoming data must be validated.
-
-Frontend-supplied role information must not be trusted.
-
-Sensitive environment variables must be protected.
-
-Database/service-role credentials must not be exposed in frontend code.
-
-QR/barcode confirmation must be validated on the server.
-
-HTTPS must be used in the deployed application.
-
-This README does not define secret names, credentials, or environment-variable names because the project specification does not provide them.
-
-**Real-Time Behaviour**
-
-Real-time synchronization is a required part of the prototype.
-
-Important delivery updates must be visible to relevant users without manually refreshing the page.
-
-The specified scenario is:
-
-Dispatcher assigns delivery to Rider A
-              ↓
-Rider A receives assignment without refreshing
-              ↓
-Rider updates delivery to Picked Up
-              ↓
-Dispatcher dashboard updates automatically
-              ↓
-Rider scans delivery QR code
-              ↓
-Backend validates delivery and Rider
-              ↓
-Delivery is confirmed
-              ↓
-Relevant dashboards update automatically
-              ↓
-Delivery timeline records the event
-
-The final implementation should demonstrate this behavior during testing and the live demo.
-
-**QR/Barcode Confirmation**
-
-Each delivery must have a unique identifier that can be represented as a QR code.
-
-The Rider must be able to use the device camera to scan the code and identify or confirm the delivery.
-
-The backend must verify:
-
-The scanned delivery belongs to the Rider.
-
-The delivery is in a valid state.
-
-Confirmation must only be allowed after successful backend validation.
-
-If validation fails, the confirmation must not be accepted.
-
-**Development Workflow**
-
-The specification defines the following implementation order:
-
-Define requirements and acceptance criteria.
-
-Design architecture.
-
-Design database schema.
-
-Set up repository and project structure.
-
-Implement database.
-
-Implement authentication.
-
-Implement delivery creation.
-
-Implement dispatcher assignment.
-
-Implement rider status workflow.
-
-Implement delivery event history.
-
-Implement real-time synchronization.
-
-Implement QR generation.
-
-Implement QR scanning and backend verification.
-
-Build dashboards.
-
-Add validation and error handling.
-
-Test the complete workflow.
-
-Deploy frontend and backend.
-
-Seed realistic demonstration data.
-
-Perform an end-to-end live demo.
-
-Document architecture, trade-offs, limitations, and roadmap.
-
-**Three-Person Team Workflow**
-
-All three developers work on the same Reflex project and repository.
-
-The recommended ownership areas are:
-
-Developer 1 — Retailer + Frontend + Delivery Creation
-
-Primary ownership:
-
-Retailer interface
-
-Frontend foundation
-
-Delivery creation
-
-Relevant areas include:
-
-Retailer dashboard
-
-New delivery interface
-
-Retailer delivery details
-
-Delivery creation workflow
-
-Related frontend components
-
-Developer 2 — Backend + Database + Dispatcher
-
-Primary ownership:
-
-Backend
-
-Database
-
-Dispatcher workflow
-
-Delivery assignment
-
-Status-transition business logic
-
-Relevant areas include:
-
-Node.js + Express API
-
-PostgreSQL/Supabase
-
-Authentication and authorization
-
-Delivery assignment
-
-Backend status validation
-
-Delivery event handling
-
-Developer 3 — Rider + QR + Real-Time + QA
-
-Primary ownership:
-
-Rider workflow
-
-QR generation/scanning
-
-Real-time integration
-
-End-to-end QA/integration
-
-Relevant areas include:
-
-Rider dashboard
-
-Rider delivery details
-
-QR scanning
-
-QR confirmation
-
-Real-time delivery updates
-
-Mobile Rider workflow
-
-End-to-end testing
-
-These are ownership areas within one application, not three separate applications.
-
-The team must coordinate where features cross ownership boundaries.
-
-**GitHub Workflow**
-
-The team uses one shared GitHub repository with separate feature branches.
-
-The recommended workflow is:
-
-main
-  │
-  ▼
-feature branch
-  │
-  ▼
-development
-  │
-  ▼
-testing
-  │
-  ▼
-focused commit
-  │
-  ▼
-push
-  │
-  ▼
-Pull Request
-  │
-  ▼
-review
-  │
-  ▼
-merge
-
-Developers should avoid directly pushing unfinished work to main.
-
-Keep commits focused and avoid unnecessary refactoring of another developer's work.
-
-Shared-file changes should be coordinated because they may affect multiple areas of the application.
-
-**Codespaces**
-
-Each developer should use their own GitHub Codespace from the shared repository.
-
-Codespaces provide each developer with a development environment for working on their assigned feature branch.
-
-The project specification does not define exact Codespaces configuration, commands, credentials, or environment-variable names. Those values must therefore be configured according to the actual implementation rather than invented in this README.
-
-**Working With Normal Claude**
-
-Normal Claude is an AI assistant used to support development. It is not the GitHub source of truth.
-
-For AI-assisted work, provide Claude with:
-
-PROJECT_SPEC.md
-
-AI-RULES.md
-
-README.md
-
-Relevant source files
-
-The expected workflow is:
-
-Understand the project.
-
-Understand the assigned task.
-
-Inspect relevant existing files.
-
-Explain the existing implementation.
-
-Create an implementation plan.
-
-Generate or suggest the implementation.
-
-Help debug and test.
-
-Summarize changes and remaining issues.
-
-Developers remain responsible for:
-
-Reviewing generated code
-
-Moving generated code into the appropriate Codespace/project files
-
-Testing the implementation
-
-Checking the work against PROJECT_SPEC.md
-
-Committing changes
-
-Pushing changes to the correct feature branch
-
-Integrating the work with the team
-
-Claude must not claim to have executed actions it did not actually execute.
-
-Testing
-
-At minimum, the project must test:
-
-User login
-
-Role restrictions
-
-Delivery creation
-
-Rider assignment
-
-Valid status transition
-
-Invalid status transition
-
-Real-time status update
-
-QR generation
-
-QR scanning
-
-Unauthorized delivery confirmation
-
-Delivery event creation
-
-Error handling
-
-Mobile Rider workflow
-
-Testing should verify both successful and invalid workflows where required by the specification.
-
-End-to-End Test
-
-The most important test is:
-
-Retailer creates delivery
-        ↓
-Dispatcher assigns rider
-        ↓
-Rider sees assignment
-        ↓
-Rider updates status
-        ↓
-Rider scans QR
-        ↓
-Delivery is confirmed
-        ↓
-Dispatcher sees updated status
-        ↓
-Event history records the workflow
-
-This is also the core workflow that should be demonstrated during the live prototype evaluation.
-
-Deployment
-
-The specified deployment approach is:
-
-Frontend
-   ↓
-Vercel
-
-Backend
-   ↓
-Render/Railway or another suitable Node hosting service
-
-Database + Real-Time
-   ↓
-Supabase
-
-The project specification does not establish that any particular deployment has already been completed.
-
-The final prototype must:
-
-Be accessible through a real URL.
-
-Not depend on localhost for the demonstration.
-
-Use correctly configured production environment variables.
-
-Use HTTPS.
-
-The exact deployment configuration must follow the actual implementation.
-
-MVP Scope
-
-The Reflex MVP intentionally does not include:
-
-Full GPS tracking
-
-Route optimization
-
-Payments
-
-Customer mobile application
-
-SMS gateway
-
-WhatsApp integration
-
-Complex analytics
-
-Multi-company enterprise administration
-
-Advanced fleet management
-
-These are documented as future roadmap items rather than MVP features.
-
-No excluded feature should be treated as part of the current prototype.
-
-**Demo Scenario**
-
-The final live demonstration should follow this sequence:
-
-Log in as retailer
-        ↓
-Create delivery
-        ↓
-View as dispatcher
-        ↓
-Assign rider
-        ↓
-View as rider
-        ↓
-Update status
-        ↓
-Scan QR
-        ↓
-Confirm delivery
-        ↓
-Return to dispatcher
-        ↓
-Observe updated status
-        ↓
-Inspect event history
-
-The final success criterion is that an evaluator can perform this workflow through the deployed Reflex prototype.
-
-**Troubleshooting**
-
-This section is intentionally limited to issues that can be derived from the project requirements.
-
-Authentication or Role Access Problems
-
-Check that the user is authenticated and that access is being enforced according to the user's role.
-
-The backend must remain responsible for authentication and authorization.
-
-Invalid Status Transition
-
-A status transition may fail when it is not one of the permitted transitions.
-
-The backend must validate delivery status transitions.
-
-Real-Time Updates Not Appearing
-
-The required behavior is that relevant delivery updates appear without manual page refresh.
-
-Check the real-time implementation and the relevant delivery update flow.
-
-QR Confirmation Failing
-
-QR confirmation depends on backend validation.
-
-The backend must verify that:
-
-The delivery belongs to the Rider.
-
-The delivery is in a valid state.
-
-**Environment Configuration**
-
-The specification requires protected sensitive environment variables and correctly configured production environment variables.
-
-Exact variable names and values are not defined by the specification and must come from the actual implementation.
-
-Frontend/Backend Connection Issues
-
-The application uses the specified React frontend and Node.js + Express API architecture.
-
-Exact connection configuration is implementation-specific and is not defined by the project specification.
-
-**Project Status**
-
-Status: Implementation status to be updated by the development team.
-
-This README describes the intended Reflex MVP based on the project specification. It does not claim that every specified feature has already been implemented.
-
-**License / Credits**
-
-Licensing information has not yet been defined in the Reflex project specification.
-
-No license should be assumed or invented in this README.
-
-**Related Project Documents**
-
-The Reflex project uses three shared documentation files:
-
-PROJECT_SPEC.md — product and technical source of truth
-
-AI-RULES.md — rules for AI-assisted development and team collaboration
-
-README.md — practical project entry point and orientation
-
-When requirements are unclear, consult PROJECT_SPEC.md rather than inventing or silently changing a requirement.
+*Reflex was built to prove a simple idea: that a small retailer doesn't need an enterprise logistics platform to stop losing track of its own deliveries — it just needs one shared, honest, live view that everyone can trust.*
